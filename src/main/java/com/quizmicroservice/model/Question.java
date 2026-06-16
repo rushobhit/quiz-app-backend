@@ -10,11 +10,12 @@ public class Question {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(nullable = false, length = 100)
-    private String category;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "quiz_id", nullable = false)
+    private Quiz quiz;
 
     @Column(nullable = false, length = 500)
-    private String title;
+    private String question;
 
     @Column(nullable = false, length = 200)
     private String option1;
@@ -28,13 +29,26 @@ public class Question {
     @Column(nullable = false, length = 200)
     private String option4;
 
-    @Column(nullable = false, length = 200)
-    private String rightAnswer;
-
-    @Column(length = 50)
-    private String difficulty;
+    @Column(name = "correct_option", nullable = false)
+    private Integer correctOption;
 
     public Question() {
+    }
+
+    public Question(Quiz quiz,
+                    String question,
+                    String option1,
+                    String option2,
+                    String option3,
+                    String option4,
+                    Integer correctOption) {
+        this.quiz = quiz;
+        this.question = question != null ? question.trim() : null;
+        this.option1 = option1 != null ? option1.trim() : null;
+        this.option2 = option2 != null ? option2.trim() : null;
+        this.option3 = option3 != null ? option3.trim() : null;
+        this.option4 = option4 != null ? option4.trim() : null;
+        this.correctOption = correctOption;
     }
 
     public Integer getId() {
@@ -45,20 +59,20 @@ public class Question {
         this.id = id;
     }
 
-    public String getCategory() {
-        return category;
+    public Quiz getQuiz() {
+        return quiz;
     }
 
-    public void setCategory(String category) {
-        this.category = category;
+    public void setQuiz(Quiz quiz) {
+        this.quiz = quiz;
     }
 
-    public String getTitle() {
-        return title;
+    public String getQuestion() {
+        return question;
     }
 
-    public void setTitle(String title) {
-        this.title = title;
+    public void setQuestion(String question) {
+        this.question = question != null ? question.trim() : null;
     }
 
     public String getOption1() {
@@ -66,7 +80,7 @@ public class Question {
     }
 
     public void setOption1(String option1) {
-        this.option1 = option1;
+        this.option1 = option1 != null ? option1.trim() : null;
     }
 
     public String getOption2() {
@@ -74,7 +88,7 @@ public class Question {
     }
 
     public void setOption2(String option2) {
-        this.option2 = option2;
+        this.option2 = option2 != null ? option2.trim() : null;
     }
 
     public String getOption3() {
@@ -82,7 +96,7 @@ public class Question {
     }
 
     public void setOption3(String option3) {
-        this.option3 = option3;
+        this.option3 = option3 != null ? option3.trim() : null;
     }
 
     public String getOption4() {
@@ -90,22 +104,14 @@ public class Question {
     }
 
     public void setOption4(String option4) {
-        this.option4 = option4;
+        this.option4 = option4 != null ? option4.trim() : null;
     }
 
-    public String getRightAnswer() {
-        return rightAnswer;
+    public Integer getCorrectOption() {
+        return correctOption;
     }
 
-    public void setRightAnswer(String rightAnswer) {
-        this.rightAnswer = rightAnswer;
-    }
-
-    public String getDifficulty() {
-        return difficulty;
-    }
-
-    public void setDifficulty(String difficulty) {
-        this.difficulty = difficulty;
+    public void setCorrectOption(Integer correctOption) {
+        this.correctOption = correctOption;
     }
 }

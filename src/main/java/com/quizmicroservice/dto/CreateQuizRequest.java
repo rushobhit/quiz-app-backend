@@ -1,54 +1,39 @@
 package com.quizmicroservice.dto;
 
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class CreateQuizRequest {
 
-    @NotBlank(message = "Category is required.")
-    @Size(max = 100, message = "Category must not exceed 100 characters.")
-    private String category;
+    @NotBlank(message = "Subject is required.")
+    @Size(max = 100, message = "Subject must not exceed 100 characters.")
+    private String subject;
 
-    @Min(value = 1, message = "Number of questions must be at least 1.")
-    @Max(value = 20, message = "Number of questions must not exceed 20.")
-    private int numQ;
-
-    @NotBlank(message = "Title is required.")
-    @Size(max = 150, message = "Title must not exceed 150 characters.")
-    private String title;
+    @NotBlank(message = "Difficulty is required.")
+    @Size(max = 50, message = "Difficulty must not exceed 50 characters.")
+    private String difficulty;
 
     public CreateQuizRequest() {
     }
 
-    public CreateQuizRequest(String category, int numQ, String title) {
-        this.category = category;
-        this.numQ = numQ;
-        this.title = title;
+    public CreateQuizRequest(String subject, String difficulty) {
+        this.setSubject(subject);
+        this.setDifficulty(difficulty);
     }
 
-    public String getCategory() {
-        return category;
+    public String getSubject() {
+        return subject;
     }
 
-    public void setCategory(String category) {
-        this.category = category;
+    public void setSubject(String subject) {
+        this.subject = subject != null ? subject.trim() : null;
     }
 
-    public int getNumQ() {
-        return numQ;
+    public String getDifficulty() {
+        return difficulty;
     }
 
-    public void setNumQ(int numQ) {
-        this.numQ = numQ;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
+    public void setDifficulty(String difficulty) {
+        this.difficulty = difficulty != null ? difficulty.trim() : null;
     }
 }

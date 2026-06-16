@@ -1,12 +1,26 @@
 package com.quizmicroservice.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class QuestionRequest {
+
+    private Integer id;
+
+    @NotBlank(message = "Subject is required.")
+    @Size(max = 100, message = "Subject must not exceed 100 characters.")
+    private String subject;
+
+    @NotBlank(message = "Difficulty is required.")
+    @Size(max = 50, message = "Difficulty must not exceed 50 characters.")
+    private String difficulty;
 
     @NotBlank(message = "Question text is required.")
     @Size(max = 500, message = "Question text must not exceed 500 characters.")
@@ -19,22 +33,50 @@ public class QuestionRequest {
             @Size(max = 200, message = "Each option must not exceed 200 characters.")
             String> options;
 
-    @NotBlank(message = "Correct answer is required.")
-    @Size(max = 200, message = "Correct answer must not exceed 200 characters.")
-    private String correctAnswer;
-
-    @NotBlank(message = "Category is required.")
-    @Size(max = 100, message = "Category must not exceed 100 characters.")
-    private String category;
+    @NotNull(message = "Correct option is required.")
+    @Min(value = 1, message = "Correct option must be between 1 and 4.")
+    @Max(value = 4, message = "Correct option must be between 1 and 4.")
+    private Integer correctOption;
 
     public QuestionRequest() {
     }
 
-    public QuestionRequest(String question, List<String> options, String correctAnswer, String category) {
-        this.question = question;
-        this.options = options;
-        this.correctAnswer = correctAnswer;
-        this.category = category;
+    public QuestionRequest(Integer id,
+                           String subject,
+                           String difficulty,
+                           String question,
+                           List<String> options,
+                           Integer correctOption) {
+        this.id = id;
+        this.setSubject(subject);
+        this.setDifficulty(difficulty);
+        this.setQuestion(question);
+        this.setOptions(options);
+        this.correctOption = correctOption;
+    }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject != null ? subject.trim() : null;
+    }
+
+    public String getDifficulty() {
+        return difficulty;
+    }
+
+    public void setDifficulty(String difficulty) {
+        this.difficulty = difficulty != null ? difficulty.trim().toUpperCase() : null;
     }
 
     public String getQuestion() {
@@ -42,7 +84,7 @@ public class QuestionRequest {
     }
 
     public void setQuestion(String question) {
-        this.question = question;
+        this.question = question != null ? question.trim() : null;
     }
 
     public List<String> getOptions() {
@@ -50,32 +92,30 @@ public class QuestionRequest {
     }
 
     public void setOptions(List<String> options) {
-        this.options = options;
+        this.options = options == null
+                ? null
+                : options.stream()
+                .map(opt -> opt != null ? opt.trim() : null)
+                .collect(Collectors.toList());
     }
 
-    public String getCorrectAnswer() {
-        return correctAnswer;
+    public Integer getCorrectOption() {
+        return correctOption;
     }
 
-    public void setCorrectAnswer(String correctAnswer) {
-        this.correctAnswer = correctAnswer;
+    public void setCorrectOption(Integer correctOption) {
+        this.correctOption = correctOption;
     }
 
-    public String getCategory() {
-        return category;
-    }
-
-    public void setCategory(String category) {
-        this.category = category;
-    }
-
-    public boolean hasValidCorrectAnswer() {
-        if (options == null || correctAnswer == null) {
+    public boolean hasValidCorrectOption() {
+        if (options == null || options.size() != 4 || correctOption == null) {
             return false;
         }
 
-        return options.stream()
-                .filter(option -> option != null && !option.trim().isEmpty())
-                .anyMatch(option -> option.trim().equals(correctAnswer.trim()));
+        if (correctOption < 1 || correctOption > 4) {
+            return false;
+        }
+
+        return options.stream().allMatch(opt -> opt != null && !opt.isBlank());
     }
 }

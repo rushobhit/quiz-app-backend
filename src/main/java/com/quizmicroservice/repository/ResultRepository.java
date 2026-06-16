@@ -9,11 +9,11 @@ import java.util.List;
 @Repository
 public interface ResultRepository extends JpaRepository<Result, Long> {
 
-    // Optional helper methods if you need them later
-
-    // All results for a specific student email
     List<Result> findByEmail(String email);
 
-    // All results for a specific quiz title
     List<Result> findByQuizTitle(String quizTitle);
+
+    List<Result> findBySubject(String subject);
+
+    List<Result> findByDifficulty(String difficulty);
 }

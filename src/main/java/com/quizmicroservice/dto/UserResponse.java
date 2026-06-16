@@ -1,6 +1,7 @@
 package com.quizmicroservice.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 public class UserResponse {
@@ -8,10 +9,16 @@ public class UserResponse {
     @NotNull(message = "Question id is required.")
     private Integer id;
 
-    @NotBlank(message = "Response is required.")
-    private String response;
+    @Min(value = 1, message = "Selected option must be between 1 and 4.")
+    @Max(value = 4, message = "Selected option must be between 1 and 4.")
+    private Integer selectedOption;
 
     public UserResponse() {
+    }
+
+    public UserResponse(Integer id, Integer selectedOption) {
+        this.id = id;
+        this.selectedOption = selectedOption;
     }
 
     public Integer getId() {
@@ -22,11 +29,11 @@ public class UserResponse {
         this.id = id;
     }
 
-    public String getResponse() {
-        return response;
+    public Integer getSelectedOption() {
+        return selectedOption;
     }
 
-    public void setResponse(String response) {
-        this.response = response;
+    public void setSelectedOption(Integer selectedOption) {
+        this.selectedOption = selectedOption;
     }
 }

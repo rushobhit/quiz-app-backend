@@ -5,12 +5,16 @@ import com.quizmicroservice.dto.UserResponse;
 import com.quizmicroservice.model.Question;
 import com.quizmicroservice.model.Quiz;
 import com.quizmicroservice.model.Result;
+import com.quizmicroservice.model.User;
 import com.quizmicroservice.repository.QuestionRepository;
 import com.quizmicroservice.repository.QuizRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,98 +24,154 @@ public class QuizService {
 
     private final QuizRepository quizRepository;
     private final QuestionRepository questionRepository;
-    private final ResultService resultService; // <-- inject ResultService
+    private final ResultService resultService;
+    private final UserService userService;
 
     public QuizService(QuizRepository quizRepository,
                        QuestionRepository questionRepository,
-                       ResultService resultService) {
+                       ResultService resultService,
+                       UserService userService) {
         this.quizRepository = quizRepository;
         this.questionRepository = questionRepository;
         this.resultService = resultService;
+        this.userService = userService;
     }
 
-    public void createQuiz(String category, int numQ, String title) {
-        List<Question> questions = questionRepository.findRandomQuestionsByCategory(category, numQ);
+    public Integer createQuiz(String subject, String difficulty) {
+        String subj = subject != null ? subject.trim() : null;
+        String diff = difficulty != null ? difficulty.trim().toUpperCase() : null;
 
-        if (questions.isEmpty()) {
-            throw new IllegalArgumentException("No questions found for category: " + category);
+        if (subj == null || subj.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Subject is required.");
         }
 
-        if (questions.size() < numQ) {
-            throw new IllegalArgumentException(
-                    "Only " + questions.size() + " questions are available for category: " + category
+        if (diff == null || diff.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Difficulty is required.");
+        }
+
+        Quiz existingQuiz = quizRepository.findBySubjectAndDifficulty(subj, diff).orElse(null);
+        if (existingQuiz != null) {
+            if (existingQuiz.getQuestions() == null || existingQuiz.getQuestions().isEmpty()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "No questions available for subject: " + subj + " and difficulty: " + diff
+                );
+            }
+            return existingQuiz.getId();
+        }
+
+        List<Question> questions = questionRepository.findByQuiz_SubjectAndQuiz_Difficulty(subj, diff);
+
+        if (questions == null || questions.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No questions found for subject: " + subj + " and difficulty: " + diff
             );
         }
 
         Quiz quiz = new Quiz();
-        quiz.setTitle(title.trim());
-        quiz.setQuestions(questions);
-        quizRepository.save(quiz);
+        quiz.setSubject(subj);
+        quiz.setDifficulty(diff);
+
+        for (Question q : questions) {
+            quiz.addQuestion(q);
+        }
+
+        Quiz savedQuiz = quizRepository.save(quiz);
+        return savedQuiz.getId();
     }
 
     public List<QuestionWrapper> getQuizQuestions(Integer id) {
         Quiz quiz = quizRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Quiz not found with id: " + id
+                ));
 
-        List<QuestionWrapper> questionsForUser = new ArrayList<>();
-
-        for (Question q : quiz.getQuestions()) {
-            questionsForUser.add(new QuestionWrapper(
-                    q.getId(),
-                    q.getTitle(),
-                    q.getOption1(),
-                    q.getOption2(),
-                    q.getOption3(),
-                    q.getOption4()
-            ));
-        }
-
-        return questionsForUser;
+        return quiz.getQuestions()
+                .stream()
+                .map(q -> new QuestionWrapper(
+                        q.getId(),
+                        q.getQuestion(),
+                        q.getOption1(),
+                        q.getOption2(),
+                        q.getOption3(),
+                        q.getOption4()
+                ))
+                .toList();
     }
 
     public int calculateScore(Integer id, List<UserResponse> responses) {
         Quiz quiz = quizRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Quiz not found with id: " + id));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Quiz not found with id: " + id
+                ));
 
-        Map<Integer, String> correctAnswers = new HashMap<>();
-
+        Map<Integer, Integer> correctOptions = new HashMap<>();
         for (Question question : quiz.getQuestions()) {
-            correctAnswers.put(question.getId(), question.getRightAnswer());
+            correctOptions.put(question.getId(), question.getCorrectOption());
         }
 
         int score = 0;
+        int attemptedCount = 0;
 
-        for (UserResponse response : responses) {
-            if (response.getId() == null || response.getResponse() == null) {
-                continue;
-            }
+        if (responses != null) {
+            for (UserResponse response : responses) {
+                if (response == null || response.getId() == null || response.getSelectedOption() == null) {
+                    continue;
+                }
 
-            String correctAnswer = correctAnswers.get(response.getId());
+                attemptedCount++;
 
-            if (correctAnswer != null &&
-                    response.getResponse().trim().equalsIgnoreCase(correctAnswer.trim())) {
-                score++;
+                Integer correctOpt = correctOptions.get(response.getId());
+                if (correctOpt != null && correctOpt.equals(response.getSelectedOption())) {
+                    score++;
+                }
             }
         }
 
-        int total = quiz.getQuestions().size();
+        int total = quiz.getQuestions() != null ? quiz.getQuestions().size() : 0;
         double percentage = total > 0 ? (score * 100.0) / total : 0.0;
 
-        // TODO: replace with real logged-in user data when you pass it in
         String studentName = "Unknown Student";
         String email = "unknown@example.com";
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            User user = userService.findByEmail(username);
+            if (user != null) {
+                studentName = ((user.getFirstName() != null ? user.getFirstName() : "") +
+                        (user.getLastName() != null && !user.getLastName().isBlank() ? " " + user.getLastName() : ""))
+                        .trim();
+
+                if (studentName.isBlank()) {
+                    studentName = user.getUsername();
+                }
+
+                email = user.getEmail();
+            }
+        }
+
+        String subject = quiz.getSubject();
+        String difficulty = quiz.getDifficulty();
+        String quizTitle = subject + " - " + difficulty;
 
         Result result = new Result(
                 studentName,
                 email,
-                quiz.getTitle(),
+                subject,
+                difficulty,
+                quizTitle,
                 score,
                 total,
                 percentage,
+                null,
+                attemptedCount,
                 LocalDateTime.now()
         );
 
-        // save result so admin can see it later
         resultService.saveResult(result);
 
         return score;

@@ -19,18 +19,35 @@ public class OtpService {
         }
     }
 
-    private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
+    private static class VerifiedEntry {
+        final Instant expiresAt;
 
-    // 10 minutes expiry
-    private static final long EXPIRY_SECONDS = 10 * 60;
+        VerifiedEntry(Instant expiresAt) {
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    private final Map<String, OtpEntry> otpStore = new ConcurrentHashMap<>();
+    private final Map<String, VerifiedEntry> verifiedStore = new ConcurrentHashMap<>();
+
+    // Match frontend OTP validity: 5 minutes
+    private static final long OTP_EXPIRY_SECONDS = 5 * 60;
+
+    // Verified email session validity for signup completion: 15 minutes
+    private static final long VERIFIED_EXPIRY_SECONDS = 15 * 60;
 
     public void storeOtp(String email, String otp) {
-        Instant expiresAt = Instant.now().plusSeconds(EXPIRY_SECONDS);
-        otpStore.put(email.toLowerCase(), new OtpEntry(otp, expiresAt));
+        String key = normalize(email);
+        Instant expiresAt = Instant.now().plusSeconds(OTP_EXPIRY_SECONDS);
+
+        otpStore.put(key, new OtpEntry(otp, expiresAt));
+
+        // resend/new OTP means previous verification should no longer count
+        verifiedStore.remove(key);
     }
 
     public boolean verifyOtp(String email, String otp) {
-        String key = email.toLowerCase();
+        String key = normalize(email);
         OtpEntry entry = otpStore.get(key);
 
         if (entry == null) {
@@ -46,6 +63,39 @@ public class OtpService {
         if (matches) {
             otpStore.remove(key);
         }
+
         return matches;
+    }
+
+    public void markVerified(String email) {
+        String key = normalize(email);
+        Instant expiresAt = Instant.now().plusSeconds(VERIFIED_EXPIRY_SECONDS);
+        verifiedStore.put(key, new VerifiedEntry(expiresAt));
+    }
+
+    public boolean isVerified(String email) {
+        String key = normalize(email);
+        VerifiedEntry entry = verifiedStore.get(key);
+
+        if (entry == null) {
+            return false;
+        }
+
+        if (Instant.now().isAfter(entry.expiresAt)) {
+            verifiedStore.remove(key);
+            return false;
+        }
+
+        return true;
+    }
+
+    public void clearOtp(String email) {
+        String key = normalize(email);
+        otpStore.remove(key);
+        verifiedStore.remove(key);
+    }
+
+    private String normalize(String email) {
+        return email == null ? "" : email.trim().toLowerCase();
     }
 }

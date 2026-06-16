@@ -3,10 +3,11 @@ package com.quizmicroservice.service;
 import com.quizmicroservice.dto.StudentResultDto;
 import com.quizmicroservice.model.Result;
 import com.quizmicroservice.repository.ResultRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ResultService {
@@ -17,24 +18,41 @@ public class ResultService {
         this.resultRepository = resultRepository;
     }
 
-    // for admin dashboard
     public List<StudentResultDto> getAllResultsForAdmin() {
-        List<Result> results = resultRepository.findAll();
-        return results.stream()
+        return resultRepository.findAll()
+                .stream()
                 .map(this::mapToDto)
-                .collect(Collectors.toList());
+                .toList();
     }
 
-    // ✅ new method: used by QuizService to store a result
     public Result saveResult(Result result) {
         return resultRepository.save(result);
     }
 
+    public void deleteResultById(Long id) {
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Result id is required.");
+        }
+
+        if (!resultRepository.existsById(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Student result not found with id: " + id
+            );
+        }
+
+        resultRepository.deleteById(id);
+    }
+
     private StudentResultDto mapToDto(Result result) {
         StudentResultDto dto = new StudentResultDto();
+        dto.setTimeTaken(result.getTimeTaken());
+        dto.setAttemptedQuestions(result.getAttemptedQuestions());
         dto.setId(result.getId());
         dto.setStudentName(result.getStudentName());
         dto.setEmail(result.getEmail());
+        dto.setSubject(result.getSubject());
+        dto.setDifficulty(result.getDifficulty());
         dto.setQuizTitle(result.getQuizTitle());
         dto.setScore(result.getScore());
         dto.setTotal(result.getTotal());
