@@ -1,8 +1,11 @@
 package com.quizmicroservice.controller;
 
+import com.quizmicroservice.dto.ApiResponse;
 import com.quizmicroservice.dto.CreateQuizRequest;
 import com.quizmicroservice.dto.QuestionWrapper;
+import com.quizmicroservice.dto.QuizMetaResponse;
 import com.quizmicroservice.dto.UserResponse;
+import com.quizmicroservice.service.QuestionService;
 import com.quizmicroservice.service.QuizService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
@@ -20,12 +23,17 @@ import java.util.List;
 @Validated
 public class QuizController {
 
+	private final QuestionService questionService;
     private final QuizService quizService;
-
-    public QuizController(QuizService quizService) {
+    
+    public QuizController(
+            QuizService quizService,
+            QuestionService questionService
+    ) {
         this.quizService = quizService;
+        this.questionService = questionService;
     }
-
+    
     public record CreateQuizResponse(
             Integer id,
             String subject,
@@ -96,7 +104,7 @@ public class QuizController {
             @PathVariable @Positive(message = "Quiz id must be positive.") Integer id,
             @Valid @RequestBody QuizSubmissionRequest submission
     ) {
-        int score = quizService.calculateScore(id, submission.responses());
+        int score = quizService.calculateScore(id, submission.responses(), submission.timeTaken());
 
         QuizSubmissionResponse response = new QuizSubmissionResponse(
                 id,
@@ -112,4 +120,21 @@ public class QuizController {
 
         return ResponseEntity.ok(response);
     }
+
+@GetMapping("/meta")
+public ResponseEntity<ApiResponse<QuizMetaResponse>> getQuizMeta(
+        @RequestParam String subject,
+        @RequestParam String difficulty
+) {
+    return ResponseEntity.ok(
+            new ApiResponse<>(
+                    true,
+                    "Quiz metadata fetched successfully.",
+                    questionService.getQuizMeta(
+                            subject,
+                            difficulty
+                    )
+            )
+    );
+}
 }

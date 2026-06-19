@@ -1,5 +1,6 @@
 package com.quizmicroservice.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -7,16 +8,27 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
 
+    @Value("${app.cors.allowed-origins}")
+    private String allowedOrigins;
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
+
         registry.addMapping("/**")
                 .allowedOrigins(
-                        "http://localhost:5173",
-                        "http://localhost:5174",
-                        "http://localhost:3000",
-                        "http://localhost:4200"
+                        allowedOrigins
+                                .replace(" ", "")
+                                .split(",")
                 )
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD")
+                .allowedMethods(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "DELETE",
+                        "PATCH",
+                        "OPTIONS",
+                        "HEAD"
+                )
                 .allowedHeaders("*")
                 .exposedHeaders("Authorization")
                 .allowCredentials(true)

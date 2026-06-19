@@ -8,6 +8,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +25,13 @@ public class AuthActivityService {
     private final AuthActivityLogRepository authActivityLogRepository;
     private final EmailService emailService;
 
+    public Page<AuthActivityLog> getLogs(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        return authActivityLogRepository
+                .findAllByOrderByCreatedAtDesc(pageable);
+    }
+    
     public AuthActivityService(AuthActivityLogRepository authActivityLogRepository,
                                EmailService emailService) {
         this.authActivityLogRepository = authActivityLogRepository;

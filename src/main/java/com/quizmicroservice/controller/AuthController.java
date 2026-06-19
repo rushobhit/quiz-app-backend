@@ -13,13 +13,12 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
@@ -32,14 +31,16 @@ public class AuthController {
     private final JwtService jwtService;
     private final AuthActivityService authActivityService;
 
-    @Value("${app.frontend.url:http://localhost:5173}")
+    @Value("${app.frontend.url}")
     private String frontendUrl;
 
-    public AuthController(EmailService emailService,
-                          OtpService otpService,
-                          UserService userService,
-                          JwtService jwtService,
-                          AuthActivityService authActivityService) {
+    public AuthController(
+            EmailService emailService,
+            OtpService otpService,
+            UserService userService,
+            JwtService jwtService,
+            AuthActivityService authActivityService
+    ) {
         this.emailService = emailService;
         this.otpService = otpService;
         this.userService = userService;
@@ -253,10 +254,24 @@ public class AuthController {
                     .body(new MessageResponse("Invalid credentials."));
         }
 
+        if ("BLOCKED".equalsIgnoreCase(user.getStatus())) {
+
+            authActivityService.logFailedLogin(
+                    user.getEmail(),
+                    httpServletRequest,
+                    "Login attempt on blocked account."
+            );
+
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Your account has been blocked. Please contact administrator."
+            );
+        }
         String token = jwtService.generateToken(
                 user.getEmail().trim().toLowerCase(),
                 user.getRole().trim().toUpperCase()
         );
+        
 
         authActivityService.logLoginSuccess(
                 user.getId(),
@@ -347,191 +362,10 @@ public class AuthController {
         return ResponseEntity.ok(new MessageResponse("Log recorded successfully."));
     }
 
-    @PostMapping("/forgot-username")
-    public ResponseEntity<MessageResponse> forgotUsername(
-            @RequestBody @Valid EmailRequest request
-    ) {
-        String normalizedEmail = request.email().trim().toLowerCase();
-
-        User user = userService.findByEmail(normalizedEmail);
-        if (user != null) {
-            String subject = "Your Quiz App username";
-            String body = "Hello " + (user.getFirstName() != null ? user.getFirstName() : "") +
-                    ",\n\nYour username is: " + user.getUsername() +
-                    "\n\nIf you did not request this, you can ignore this email.";
-
-            emailService.sendSimpleEmail(normalizedEmail, subject, body);
-        }
-
-        return ResponseEntity.ok(
-                new MessageResponse("If an account exists with this email, your username has been sent.")
-        );
-    }
-
-    @PostMapping("/forgot-username-by-details")
-    public ResponseEntity<MessageResponse> forgotUsernameByDetails(
-            @RequestBody @Valid ForgotUsernameByDetailsRequest request
-    ) {
-        String normalizedEmail = request.email().trim().toLowerCase();
-        LocalDate dob;
-
-        try {
-            dob = parseDob(request.dob());
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse(ex.getMessage()));
-        }
-
-        User user = userService.findByEmail(normalizedEmail);
-        if (user != null
-                && user.getDob() != null
-                && user.getDob().equals(dob)) {
-
-            String subject = "Your Quiz App username";
-            String body = "Hello " + (user.getFirstName() != null ? user.getFirstName() : "") +
-                    ",\n\nYour username is: " + user.getUsername() +
-                    "\n\nIf you did not request this, you can ignore this email.";
-
-            emailService.sendSimpleEmail(normalizedEmail, subject, body);
-        }
-
-        return ResponseEntity.ok(
-                new MessageResponse("If the provided details match an account, your username has been sent.")
-        );
-    }
-
-    @PostMapping("/forgot-password")
-    public ResponseEntity<MessageResponse> forgotPassword(
-            @RequestBody @Valid EmailRequest request
-    ) {
-        String normalizedEmail = request.email().trim().toLowerCase();
-
-        User user = userService.findByEmail(normalizedEmail);
-        if (user != null) {
-            String token = userService.createPasswordResetToken(user);
-            String resetUrl = frontendUrl + "/reset-password?token=" + token;
-
-            String subject = "Reset your Quiz App password";
-            String body = "Hello " + (user.getFirstName() != null ? user.getFirstName() : "") +
-                    ",\n\nWe received a request to reset your password." +
-                    "\nClick the link below to set a new password:" +
-                    "\n" + resetUrl +
-                    "\n\nIf you did not request this, you can ignore this email.";
-
-            emailService.sendSimpleEmail(normalizedEmail, subject, body);
-        }
-
-        return ResponseEntity.ok(
-                new MessageResponse("If an account exists with this email, a password reset link has been sent.")
-        );
-    }
-
-    @PostMapping("/forgot-password-by-details")
-    public ResponseEntity<MessageResponse> forgotPasswordByDetails(
-            @RequestBody @Valid ForgotPasswordByDetailsRequest request
-    ) {
-        String identifierType = request.identifierType().trim().toLowerCase();
-        String identifier = request.identifier().trim();
-        LocalDate dob;
-
-        try {
-            dob = parseDob(request.dob());
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse(ex.getMessage()));
-        }
-
-        User user = null;
-
-        if ("email".equals(identifierType)) {
-            user = userService.findByEmail(identifier.toLowerCase());
-        } else if ("username".equals(identifierType)) {
-            user = userService.findByUsername(identifier);
-        } else {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse("identifierType must be either email or username."));
-        }
-
-        if (user != null
-                && user.getDob() != null
-                && user.getDob().equals(dob)) {
-
-            String token = userService.createPasswordResetToken(user);
-            String resetUrl = frontendUrl + "/reset-password?token=" + token;
-
-            String subject = "Reset your Quiz App password";
-            String body = "Hello " + (user.getFirstName() != null ? user.getFirstName() : "") +
-                    ",\n\nWe received a request to reset your password." +
-                    "\nClick the link below to set a new password:" +
-                    "\n" + resetUrl +
-                    "\n\nIf you did not request this, you can ignore this email.";
-
-            emailService.sendSimpleEmail(user.getEmail(), subject, body);
-        }
-
-        return ResponseEntity.ok(
-                new MessageResponse("If the provided details match an account, a password reset link has been sent.")
-        );
-    }
-
-    @GetMapping("/validate-reset-token")
-    public ResponseEntity<?> validateResetToken(@RequestParam String token) {
-        User user = userService.validatePasswordResetToken(token.trim());
-
-        if (user == null) {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse("Invalid or expired reset token."));
-        }
-
-        return ResponseEntity.ok(Map.of(
-                "message", "Reset token is valid.",
-                "email", user.getEmail()
-        ));
-    }
-
-    @PostMapping("/reset-password")
-    public ResponseEntity<MessageResponse> resetPassword(
-            @RequestBody @Valid ResetPasswordRequest request
-    ) {
-        String token = request.token().trim();
-        String newPassword = request.newPassword().trim();
-
-        User user = userService.validatePasswordResetToken(token);
-        if (user == null) {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse("Invalid or expired reset token."));
-        }
-
-        try {
-            userService.updatePassword(user, newPassword);
-            userService.consumePasswordResetToken(token);
-
-            return ResponseEntity.ok(
-                    new MessageResponse("Password has been reset successfully.")
-            );
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest()
-                    .body(new MessageResponse(ex.getMessage()));
-        }
-    }
-
     private String buildFullName(User user) {
         String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
         String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
         String fullName = (firstName + " " + lastName).trim();
         return fullName.isBlank() ? null : fullName;
-    }
-
-    private LocalDate parseDob(String dob) {
-        String trimmedDob = dob != null ? dob.trim() : null;
-        if (trimmedDob == null || trimmedDob.isBlank()) {
-            throw new IllegalArgumentException("Date of birth is required.");
-        }
-
-        try {
-            return LocalDate.parse(trimmedDob);
-        } catch (DateTimeParseException ex) {
-            throw new IllegalArgumentException("Invalid date of birth format. Use yyyy-MM-dd.");
-        }
     }
 }

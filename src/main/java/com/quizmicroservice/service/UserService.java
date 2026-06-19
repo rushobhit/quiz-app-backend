@@ -1,43 +1,67 @@
 package com.quizmicroservice.service;
 
 import com.quizmicroservice.model.User;
+import com.quizmicroservice.repository.AuthActivityLogRepository;
+import com.quizmicroservice.repository.ResultRepository;
 import com.quizmicroservice.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.Instant;
+import com.quizmicroservice.dto.UpdateStudentRequest;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 @Service
 public class UserService {
 
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]{4,20}$");
-    private static final Duration RESET_TOKEN_TTL = Duration.ofMinutes(30);
 
+    private final ResultRepository resultRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthActivityLogRepository authActivityLogRepository;
 
-    private static class PasswordResetEntry {
-        final Long userId;
-        final Instant expiresAt;
-
-        PasswordResetEntry(Long userId, Instant expiresAt) {
-            this.userId = userId;
-            this.expiresAt = expiresAt;
-        }
+    public Page<User> getStudents(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return userRepository.findByRoleIgnoreCase("STUDENT", pageable);
     }
-
-    private final Map<String, PasswordResetEntry> resetTokens = new ConcurrentHashMap<>();
-
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            AuthActivityLogRepository authActivityLogRepository,
+            ResultRepository resultRepository
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authActivityLogRepository = authActivityLogRepository;
+        this.resultRepository = resultRepository;
+    }
+    
+    @Transactional
+    public void deleteStudent(Long id) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Student not found"
+                        )
+                );
+
+        authActivityLogRepository.deleteByUserId(id);
+
+        resultRepository.deleteByUser_Id(id);
+
+        userRepository.delete(user);
     }
 
     public User createStudent(String firstName,
@@ -164,7 +188,65 @@ public class UserService {
 
         return userRepository.save(user);
     }
+    
+    public void updateStudent(
+            Long id,
+            UpdateStudentRequest request
+    ) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Student not found"
+                        )
+                );
+        
 
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+
+        user.setFatherName(request.getFatherName());
+        user.setMotherName(request.getMotherName());
+
+        if (request.getDob() != null &&
+                !request.getDob().isBlank()) {
+
+            user.setDob(
+                    LocalDate.parse(request.getDob())
+            );
+        }
+
+        user.setInstitute(request.getInstitute());
+
+        user.setStatus(request.getStatus());
+        
+        User existingByEmail =
+                findByEmail(request.getEmail());
+
+        if (existingByEmail != null &&
+                !existingByEmail.getId().equals(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email already exists."
+            );
+        }
+        User existingByUsername =
+                findByUsername(request.getUsername());
+
+        if (existingByUsername != null &&
+                !existingByUsername.getId().equals(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Username already exists."
+            );
+        }
+        
+        userRepository.save(user);
+    }
+    
+    
     public User createAdmin(String firstName,
                             String lastName,
                             String username,
@@ -286,52 +368,6 @@ public class UserService {
         return passwordEncoder.matches(trimmedPassword, encodedPassword);
     }
 
-    public String createPasswordResetToken(User user) {
-        if (user == null || user.getId() == null) {
-            throw new IllegalArgumentException("User must not be null for reset token.");
-        }
-
-        cleanupExpiredResetTokens();
-        resetTokens.entrySet().removeIf(entry -> entry.getValue().userId.equals(user.getId()));
-
-        String token = UUID.randomUUID().toString();
-        Instant expiresAt = Instant.now().plus(RESET_TOKEN_TTL);
-
-        resetTokens.put(token, new PasswordResetEntry(user.getId(), expiresAt));
-        return token;
-    }
-
-    public User validatePasswordResetToken(String token) {
-        String trimmedToken = trimToNull(token);
-        if (trimmedToken == null) {
-            return null;
-        }
-
-        PasswordResetEntry entry = resetTokens.get(trimmedToken);
-        if (entry == null) {
-            return null;
-        }
-
-        if (Instant.now().isAfter(entry.expiresAt)) {
-            resetTokens.remove(trimmedToken);
-            return null;
-        }
-
-        return userRepository.findById(entry.userId).orElse(null);
-    }
-
-    public boolean isPasswordResetTokenValid(String token) {
-        return validatePasswordResetToken(token) != null;
-    }
-
-    public void consumePasswordResetToken(String token) {
-        String trimmedToken = trimToNull(token);
-        if (trimmedToken == null) {
-            return;
-        }
-        resetTokens.remove(trimmedToken);
-    }
-
     public void updatePassword(User user, String rawPassword) {
         if (user == null) {
             throw new IllegalArgumentException("User is required.");
@@ -348,22 +384,6 @@ public class UserService {
 
         user.setPasswordHash(passwordEncoder.encode(trimmedPassword));
         userRepository.save(user);
-    }
-
-    public void resetPassword(String token, String newPassword) {
-        User user = validatePasswordResetToken(token);
-
-        if (user == null) {
-            throw new IllegalArgumentException("Invalid or expired reset token.");
-        }
-
-        updatePassword(user, newPassword);
-        consumePasswordResetToken(token);
-    }
-
-    public void cleanupExpiredResetTokens() {
-        Instant now = Instant.now();
-        resetTokens.entrySet().removeIf(entry -> now.isAfter(entry.getValue().expiresAt));
     }
 
     private void validateUsername(String username) {

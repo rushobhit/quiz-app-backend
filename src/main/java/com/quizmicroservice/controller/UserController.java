@@ -14,7 +14,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
 
     private final UserService userService;
@@ -138,48 +137,4 @@ public class UserController {
         }
     }
 
-    @PostMapping("/forgot-password")
-    public ResponseEntity<?> createPasswordResetToken(@RequestBody Map<String, String> request) {
-        String email = request.get("email");
-        User user = userService.findByEmail(email);
-
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("message", "User not found"));
-        }
-
-        String token = userService.createPasswordResetToken(user);
-
-        return ResponseEntity.ok(Map.of(
-                "message", "Password reset token created successfully",
-                "token", token
-        ));
-    }
-
-    @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> request) {
-        try {
-            String token = request.get("token");
-            String newPassword = request.get("newPassword");
-
-            userService.resetPassword(token, newPassword);
-
-            return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
-        } catch (IllegalArgumentException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", ex.getMessage()));
-        }
-    }
-
-    @GetMapping("/reset-password/validate")
-    public ResponseEntity<?> validateResetToken(@RequestParam String token) {
-        boolean valid = userService.isPasswordResetTokenValid(token);
-
-        if (!valid) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(Map.of("message", "Invalid or expired reset token"));
-        }
-
-        return ResponseEntity.ok(Map.of("message", "Reset token is valid"));
-    }
 }

@@ -31,5 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
-".env"    # make sure .env is ignored
-"frontend/" 
+.env
+.env.*
+target/
+.idea/
+.settings/
+.classpath
+.project

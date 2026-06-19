@@ -5,6 +5,11 @@ import com.quizmicroservice.model.Question;
 import com.quizmicroservice.model.Quiz;
 import com.quizmicroservice.repository.QuestionRepository;
 import com.quizmicroservice.repository.QuizRepository;
+import com.quizmicroservice.dto.QuizMetaResponse;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,6 +26,50 @@ public class QuestionService {
                            QuizRepository quizRepository) {
         this.questionRepository = questionRepository;
         this.quizRepository = quizRepository;
+    }
+    
+    public QuizMetaResponse getQuizMeta(
+            String subject,
+            String difficulty
+    ) {
+        long totalQuestions =
+                questionRepository.countByQuiz_SubjectAndQuiz_Difficulty(
+                        subject,
+                        difficulty
+                );
+
+        int totalTimeMinutes =
+                Math.max(5, (int) totalQuestions);
+
+        return new QuizMetaResponse(
+                subject,
+                difficulty,
+                totalQuestions,
+                totalTimeMinutes
+        );
+    }
+    
+    public Page<QuestionRequest> getQuestionsForAdmin(
+            int page,
+            int size,
+            String search
+    ) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        if (search != null && !search.isBlank()) {
+            return questionRepository
+            		.findByQuestionContainingIgnoreCaseOrQuiz_SubjectContainingIgnoreCaseOrQuiz_DifficultyContainingIgnoreCase(
+                            search,
+                            search,
+                            search,
+                            pageable
+                    )
+                    .map(this::mapToQuestionRequest);
+        }
+
+        return questionRepository
+                .findAll(pageable)
+                .map(this::mapToQuestionRequest);
     }
 
     public List<Question> getAllQuestions() {
@@ -89,7 +138,6 @@ public class QuestionService {
                 .map(this::mapToQuestionRequest)
                 .toList();
     }
-
     public void updateQuestion(Integer id, QuestionRequest request) {
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question request is required.");

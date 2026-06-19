@@ -48,16 +48,10 @@ public class SecurityConfig {
                                 "/auth/login-log",
                                 "/auth/send-student-signup-otp",
                                 "/auth/verify-student-signup-otp",
-                                "/auth/student/signup-details",
-                                "/auth/forgot-username",
-                                "/auth/forgot-password",
-                                "/auth/forgot-username-by-details",
-                                "/auth/forgot-password-by-details",
-                                "/auth/validate-reset-token",
-                                "/auth/reset-password"
+                                "/auth/student/signup-details"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/quizzes/**").permitAll()
+                        .requestMatchers("/quizzes/**").authenticated()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/users/me").authenticated()
                         .anyRequest().authenticated()

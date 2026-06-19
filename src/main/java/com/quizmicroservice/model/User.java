@@ -39,12 +39,6 @@ public class User {
     @Column(name = "status", nullable = false, length = 20)
     private String status = "ACTIVE";
 
-    @Column(name = "roll_no", length = 50)
-    private String rollNo;
-
-    @Column(name = "branch", length = 100)
-    private String branch;
-
     @Column(name = "father_name", length = 100)
     private String fatherName;
 
@@ -130,8 +124,6 @@ public class User {
         email = normalizeEmail(email);
         role = normalizeUpper(role);
         status = normalizeUpper(status);
-        rollNo = normalizeText(rollNo);
-        branch = normalizeText(branch);
         fatherName = normalizeText(fatherName);
         motherName = normalizeText(motherName);
         institute = normalizeText(institute);
@@ -223,22 +215,6 @@ public class User {
 
     public void setStatus(String status) {
         this.status = normalizeUpper(status);
-    }
-
-    public String getRollNo() {
-        return rollNo;
-    }
-
-    public void setRollNo(String rollNo) {
-        this.rollNo = normalizeText(rollNo);
-    }
-
-    public String getBranch() {
-        return branch;
-    }
-
-    public void setBranch(String branch) {
-        this.branch = normalizeText(branch);
     }
 
     public String getFatherName() {
