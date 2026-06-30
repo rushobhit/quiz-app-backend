@@ -74,7 +74,12 @@ public class EmailService {
             helper.setText(trimmedText, false);
             mailSender.send(message);
         } catch (Exception ex) {
-            throw new RuntimeException("Failed to send email.", ex);
+            System.err.println("SMTP Mail sending failed: " + ex.getMessage());
+            System.err.println("======== SMTP FALLBACK LOG =======");
+            System.err.println("Recipient: " + normalizedEmail);
+            System.err.println("Subject:   " + trimmedSubject);
+            System.err.println("Body:      " + trimmedText);
+            System.err.println("==================================");
         }
     }
 
